@@ -3,6 +3,7 @@ package cmd
 import (
 	"fmt"
 	"strconv"
+	"strings"
 	"time"
 
 	"tv-guide/omdb"
@@ -45,13 +46,13 @@ type MovieInfo struct {
 	NowShowing  string
 	ReleaseYear int
 	IMDBID      string
-	Genre       string
+	Genre       []string
 	Started     string
 	EndsOn      string
 	Eclipsed    string
 	NextChange  string
 	StartOn     string
-	NextGenre   string
+	NextGenre   []string
 	NextIMDBID  string
 }
 
@@ -95,9 +96,9 @@ func MovieCommand() {
 			NowShowing:  fmt.Sprintf("%s (%d)", pInfo.Program.Name, pInfo.Program.Releaseyear),
 			ReleaseYear: pInfo.Program.Releaseyear,
 			IMDBID:      GetImdbRating(pInfo.Program.Imdbid),
-			Genre:       pInfo.Program.Genre,
+			Genre:       GenreTrim(pInfo.Program.Genre),
 			NextChange:  fmt.Sprintf("%s (%d)", pInfo.Nextprogram.Program.Name, pInfo.Nextprogram.Program.Releaseyear),
-			NextGenre:   pInfo.Nextprogram.Program.Genre,
+			NextGenre:   GenreTrim(pInfo.Nextprogram.Program.Genre),
 			NextIMDBID:  GetImdbRating(pInfo.Nextprogram.Program.Imdbid),
 		})
 	}
@@ -114,6 +115,14 @@ func MovieCommand() {
 
 func HumanizeTime(timez int64) string {
 	return time.UnixMilli(timez).In(time.Local).Format("15:04:05")
+}
+
+func GenreTrim(genre string) []string {
+	genres := strings.Split(genre, ",")
+	if len(genres) > 3 {
+		return genres[:3]
+	}
+	return genres
 }
 
 func GetImdbRating(id string) string {
