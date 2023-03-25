@@ -4,84 +4,54 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"time"
 )
 
-type Program struct {
-	ID            int    `json:"id"`
-	Name          string `json:"name"`
-	Releasedate   int64  `json:"releasedate"`
-	Releaseyear   int    `json:"releaseyear"`
-	Episodeno     int    `json:"episodeno"`
-	Seasonno      int    `json:"seasonno"`
-	Language      string `json:"language"`
-	Length        int    `json:"length"`
-	Thumbnail     string `json:"thumbnail"`
-	Thumbnailw92  string `json:"thumbnailw92"`
-	Thumbnailw154 string `json:"thumbnailw154"`
-	Thumbnailw780 string `json:"thumbnailw780"`
-	Poster        string `json:"poster"`
-	Posterw92     string `json:"posterw92"`
-	Posterw154    string `json:"posterw154"`
-	Genre         string `json:"genre"`
-	Type          string `json:"type"`
-	Imdbid        string `json:"imdbid"`
-	Themoviedbid  int    `json:"themoviedbid"`
-	Summary       string `json:"summary"`
-	Tagline       string `json:"tagline"`
-	Rating        int    `json:"rating"`
-	Mainrating    int    `json:"mainrating"`
-	Popularity    int    `json:"popularity"`
-	Modifytime    int64  `json:"modifytime"`
-	Castloaded    bool   `json:"castLoaded"`
-	Sourcesloaded bool   `json:"sourcesLoaded"`
-	Peopleloaded  bool   `json:"peopleLoaded"`
-	Hastrailers   bool   `json:"hasTrailers"`
-	Similarloaded bool   `json:"similarLoaded"`
+type ProgrammeData struct {
+	Lastmodified    time.Time   `json:"lastModified"`
+	Lastmodifiedutc string      `json:"lastModifiedUtc"`
+	Timezone        interface{} `json:"timeZone"`
+	Data            []Data      `json:"data"`
 }
 
-type NextProgram struct {
-	ID            int     `json:"id"`
-	Channelid     int     `json:"channelid"`
-	Program       Program `json:"program"`
-	Programid     int     `json:"programid"`
-	Starttime     int64   `json:"starttime"`
-	Endtime       int64   `json:"endtime"`
-	Inprogress    bool    `json:"inprogress"`
-	Newontv       bool    `json:"newontv"`
-	Modifytime    int64   `json:"modifytime"`
-	Repeatsloaded bool    `json:"repeatsLoaded"`
+type Data struct {
+	Pi   int         `json:"pi"`
+	Ci   interface{} `json:"ci"`
+	Tzo  interface{} `json:"tzo"`
+	Tzn  interface{} `json:"tzn"`
+	Cti  interface{} `json:"cti"`
+	Spn  string      `json:"spn"`
+	Pn   string      `json:"pn"`
+	Pne  string      `json:"pne"`
+	Cn   interface{} `json:"cn"`
+	Cc   interface{} `json:"cc"`
+	Cne  interface{} `json:"cne"`
+	Cl   interface{} `json:"cl"`
+	Pu   string      `json:"pu"`
+	Rd   string      `json:"rd"`
+	Sp   string      `json:"sp"`
+	Sdtl interface{} `json:"sdtl"`
+	Sdtu string      `json:"sdtu"`
+	Stf  string      `json:"stf"`
+	Ed   string      `json:"ed"`
+	En   interface{} `json:"en"`
+	Cs   interface{} `json:"cs"`
+	Si   int         `json:"si"`
+	Day  interface{} `json:"day"`
 }
 
-type ProgramResult struct {
-	ID            int         `json:"id"`
-	Channelid     int         `json:"channelid"`
-	Program       Program     `json:"program,omitempty"`
-	Programid     int         `json:"programid"`
-	Starttime     int64       `json:"starttime"`
-	Endtime       int64       `json:"endtime"`
-	Inprogress    bool        `json:"inprogress"`
-	Newontv       bool        `json:"newontv"`
-	Modifytime    int64       `json:"modifytime"`
-	Nextprogram   NextProgram `json:"nextProgram"`
-	Repeatsloaded bool        `json:"repeatsLoaded"`
-}
+func (tv TvWish) GetProgrammeByChannelId(channelId int) (*ProgrammeData, error) {
+	url := tv.buildUpcomingSlug(channelId)
 
-type ProgramResponse struct {
-	Results []ProgramResult `json:"results"`
-}
-
-func (t TvWiz) GetProgramme(channels string) (*ProgramResponse, error) {
-	url := t.buildProgrammeSlug(channels)
-
-	req, err := t.client.NewRequest(http.MethodGet, url, nil)
+	req, err := tv.client.NewRequest(http.MethodGet, url, nil)
 	if err != nil {
 		fmt.Println("error in new request", err)
 		return nil, err
 	}
 
-	res := &ProgramResponse{}
+	res := &ProgrammeData{}
 
-	if _, err := t.client.Do(context.Background(), req, res); err != nil {
+	if _, err := tv.client.Do(context.Background(), req, res); err != nil {
 		fmt.Println("error in do", err)
 		return nil, err
 	}

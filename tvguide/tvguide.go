@@ -6,28 +6,33 @@ import (
 	"tv-guide/utils"
 )
 
-type TvWiz struct {
+type TvWish struct {
 	client *utils.Client
 }
 
 const (
-	Channels  = "channels?provider=other"
-	Programme = "v2/currentProgram?channelids=%s&apiKey=useless&append=next"
+	Upcoming     = "IN/Channels/UpcomingJson/%d"
+	CategoryList = "IN/Channels/Category/List"
+	ChannelJSON  = "IN/Channels/Categories/ChannelsJson/%d"
 )
 
-func NewGuideAPI() (*TvWiz, error) {
-	client := utils.NewClient(nil, "https://tvwiz.in/api/")
+func NewGuideAPI() (*TvWish, error) {
+	client := utils.NewClient(nil, "https://tvwish.com/")
 
-	newTvWiz := &TvWiz{
+	newTvWiz := &TvWish{
 		client: client,
 	}
 	return newTvWiz, nil
 }
 
-func (t TvWiz) buildChannelSlug(url string) string {
-	return url
+func (t TvWish) buildUpcomingSlug(channelId int) string {
+	return fmt.Sprintf(Upcoming, channelId)
 }
 
-func (t TvWiz) buildProgrammeSlug(channels string) string {
-	return fmt.Sprintf(Programme, channels)
+func (t TvWish) buildChannelJSON(categoryId int) string {
+	return fmt.Sprintf(ChannelJSON, categoryId)
+}
+
+func (t TvWish) buildCategoryList() string {
+	return CategoryList
 }

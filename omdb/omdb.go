@@ -11,7 +11,7 @@ type OMDB struct {
 }
 
 const (
-	Info = "?i=%s&apikey=%s"
+	Info = "?t=%s&apikey=%s"
 )
 
 func NewOmdbAPI() (*OMDB, error) {

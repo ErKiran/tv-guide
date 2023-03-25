@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"os"
 )
 
 type MovieInfo struct {
@@ -38,7 +39,7 @@ type MovieInfo struct {
 }
 
 func (o OMDB) GetMovieInfo(id string) (*MovieInfo, error) {
-	url := o.buildInfoSlug(Info, id, "changeme")
+	url := o.buildInfoSlug(Info, id, os.Getenv("OMDB_API_KEY"))
 	req, err := o.client.NewRequest(http.MethodGet, url, nil)
 	if err != nil {
 		fmt.Println("error in new request", err)

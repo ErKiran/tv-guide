@@ -1,8 +1,8 @@
 package cmd
 
 import (
+	"errors"
 	"fmt"
-	"strconv"
 	"strings"
 	"time"
 
@@ -12,6 +12,8 @@ import (
 	"github.com/brettski/go-termtables"
 	"github.com/spf13/cobra"
 )
+
+var layout = "2006-01-02T15:04:05"
 
 var MovieCmd = &cobra.Command{
 	Use:   "movies",
@@ -23,29 +25,12 @@ var MovieCmd = &cobra.Command{
 	},
 }
 
-var interestedChannels = map[string]string{}
-
-func init() {
-	interestedChannels = ChannelMap()
-}
-
-func ChannelMap() map[string]string {
-	interestedChannels = map[string]string{
-		"Star Gold Select HD": "https://tvwiz.in/channel/Star-Gold-Select-HD",
-		"&pictures HD":        "https://tvwiz.in/channel/pictures-HD",
-		"Cineplex HD":         "https://tvwiz.in/channel/Cineplex-HD",
-		"Sony MAX HD":         "https://tvwiz.in/channel/Sony-MAX-HD",
-		"Star Gold HD":        "https://tvwiz.in/channel/Star-Gold-HD",
-		"Zee Cinema HD":       "https://tvwiz.in/channel/Zee-Cinema-HD",
-	}
-	return interestedChannels
-}
-
 type MovieInfo struct {
-	Channel     int
+	Channel     string
 	NowShowing  string
-	ReleaseYear int
+	ReleaseYear string
 	IMDBID      string
+	IMDBRating  string
 	Genre       []string
 	Started     string
 	EndsOn      string
@@ -56,6 +41,13 @@ type MovieInfo struct {
 	NextIMDBID  string
 }
 
+type ProgrammeInfo struct {
+	ChannelName string
+	MovieName   string
+	StartTime   string
+	FullTime    time.Time
+}
+
 func MovieCommand() {
 	table := termtables.CreateTable()
 
@@ -63,58 +55,86 @@ func MovieCommand() {
 	if err != nil {
 		fmt.Println(err)
 	}
-	channels, err := guide.GetChannels(tvguide.ChannelFilter{
-		Type:     "Movies",
-		Language: "Hindi",
-	})
+	cat, err := guide.GetCategories()
 	if err != nil {
 		fmt.Println(err)
 	}
 
-	channelIds := ""
+	var movieCat int
 
-	newChanMap := map[int]string{}
+	for _, ca := range cat {
+		if ca.N == "Hindi Movies" {
+			movieCat = ca.I
+		}
+	}
+	channelMap := make(map[string]int)
 
-	for name, id := range channels {
-		newChanMap[id] = name
-		if _, ok := interestedChannels[name]; ok {
-			channelIds += fmt.Sprintf("%s,", strconv.Itoa(id))
+	chans, err := guide.GetChannelsByCategoryID(movieCat)
+	if err != nil {
+		fmt.Println("err", err)
+	}
+	for _, channel := range chans {
+		if strings.Contains(channel.N, "HD") || channel.N == "Star Gold Select" || channel.N == "Star Gold" {
+			channelMap[channel.N] = channel.I
 		}
 	}
 
-	programme, err := guide.GetProgramme(channelIds)
-	if err != nil {
-		fmt.Println(err)
+	var pInfos []ProgrammeInfo
+	for k, v := range channelMap {
+		prg, err := guide.GetProgrammeByChannelId(v)
+		if err != nil {
+			fmt.Println("err", err)
+		}
+		for _, p := range prg.Data {
+			tm, err := time.Parse(layout, p.Sdtu)
+			if err != nil {
+				fmt.Println("err", err)
+			}
+			hour, min, sec := tm.In(time.Local).Clock()
+			pInfos = append(pInfos, ProgrammeInfo{
+				ChannelName: k,
+				MovieName:   p.Spn,
+				StartTime:   fmt.Sprintf("%d:%02d:%02d", hour, min, sec),
+				FullTime:    tm.In(time.Local),
+			})
+		}
 	}
 
 	var mInfos []MovieInfo
-	for _, pInfo := range programme.Results {
+	movieInfo := make(map[string]omdb.MovieInfo)
+	for _, pInfo := range pInfos[0:1] {
+		mdata, err := GetMovieDetails(pInfo.MovieName)
+		if err != nil {
+			fmt.Println("err", err)
+		}
+		movieInfo[pInfo.MovieName] = *mdata
 		mInfos = append(mInfos, MovieInfo{
-			Channel:     pInfo.Channelid,
-			Started:     HumanizeTime(pInfo.Starttime),
-			EndsOn:      HumanizeTime(pInfo.Endtime),
-			NowShowing:  fmt.Sprintf("%s (%d)", pInfo.Program.Name, pInfo.Program.Releaseyear),
-			ReleaseYear: pInfo.Program.Releaseyear,
-			IMDBID:      GetImdbRating(pInfo.Program.Imdbid),
-			Genre:       GenreTrim(pInfo.Program.Genre),
-			NextChange:  fmt.Sprintf("%s (%d)", pInfo.Nextprogram.Program.Name, pInfo.Nextprogram.Program.Releaseyear),
-			NextGenre:   GenreTrim(pInfo.Nextprogram.Program.Genre),
-			NextIMDBID:  GetImdbRating(pInfo.Nextprogram.Program.Imdbid),
+			Channel:    pInfo.ChannelName,
+			Started:    pInfo.StartTime,
+			NowShowing: fmt.Sprintf("%s (%s)", pInfo.MovieName, mdata.Year),
+			// ReleaseYear: pInfo.Program.Releaseyear,
+			IMDBRating: func() string {
+				info := GetMovieInfo(movieInfo, pInfo.MovieName)
+				return info.IMDBRating
+			}(),
+			Genre: func() []string {
+				info := GetMovieInfo(movieInfo, pInfo.MovieName)
+				return info.Genre
+			}(),
+			// NextChange:  fmt.Sprintf("%s (%d)", pInfo.Nextprogram.Program.Name, pInfo.Nextprogram.Program.Releaseyear),
+			// NextGenre:   GenreTrim(pInfo.Nextprogram.Program.Genre),
+			// NextIMDBID:  GetImdbRating(pInfo.Nextprogram.Program.Imdbid),
 		})
 	}
 
 	table.AddHeaders("Channel", "Now Showing", "Genre", "IMDB", "Start", "End", "Next Change", "Genre", "IMDB")
 	for _, mInfo := range mInfos {
-		table.AddRow(newChanMap[mInfo.Channel], mInfo.NowShowing, mInfo.Genre, mInfo.IMDBID, mInfo.Started, mInfo.EndsOn, mInfo.NextChange, mInfo.NextGenre, mInfo.NextIMDBID)
+		table.AddRow(mInfo.Channel, mInfo.NowShowing, mInfo.Genre, mInfo.IMDBRating, mInfo.Started, mInfo.EndsOn, mInfo.NextChange, mInfo.NextGenre, mInfo.NextIMDBID)
 	}
 
 	table.AddTitle("Movie Channels")
 
 	fmt.Println(table.Render())
-}
-
-func HumanizeTime(timez int64) string {
-	return time.UnixMilli(timez).In(time.Local).Format("15:04:05")
 }
 
 func GenreTrim(genre string) []string {
@@ -125,18 +145,31 @@ func GenreTrim(genre string) []string {
 	return genres
 }
 
-func GetImdbRating(id string) string {
-	if id == "" {
-		return "N/A"
+func GetMovieDetails(name string) (*omdb.MovieInfo, error) {
+	if name == "" {
+		return nil, errors.New("empty name")
 	}
 	omdb, err := omdb.NewOmdbAPI()
 	if err != nil {
-		fmt.Println(err)
+		return nil, err
 	}
-	info, err := omdb.GetMovieInfo(id)
+	info, err := omdb.GetMovieInfo(name)
 	if err != nil {
-		return "N/A"
+		return nil, err
 	}
 
-	return fmt.Sprintf("%s (%s)", info.Imdbrating, info.Imdbvotes)
+	return info, nil
+}
+
+func GetMovieInfo(data map[string]omdb.MovieInfo, name string) MovieInfo {
+	movie, ok := data[name]
+	if !ok {
+		return MovieInfo{}
+	}
+
+	return MovieInfo{
+		IMDBRating:  fmt.Sprintf("%s (%s)", movie.Imdbrating, movie.Imdbvotes),
+		ReleaseYear: movie.Year,
+		Genre:       GenreTrim(movie.Genre),
+	}
 }
